@@ -138,6 +138,33 @@ def add_rule(pattern: str, category: str, field: str = "merchant_raw") -> str:
     return f"Rule added: Transactions with {field} matching '{pattern}' will be categorized as '{category}'."
 
 @mcp.tool()
+def categorize_pending() -> str:
+    """
+    Apply rules to all 'Uncategorized' transactions.
+    """
+    rules = db.fetch_all("SELECT * FROM rules")
+    if not rules:
+        return "No rules found. Please add some rules first using add_rule."
+    
+    uncategorized = db.fetch_all("SELECT id, merchant_raw, notes FROM transactions WHERE category = 'Uncategorized'")
+    if not uncategorized:
+        return "No uncategorized transactions found."
+    
+    updated_count = 0
+    for txn in uncategorized:
+        for rule in rules:
+            field_to_check = txn.get(rule['field'])
+            if field_to_check and rule['pattern'].lower() in field_to_check.lower():
+                db.execute(
+                    "UPDATE transactions SET category = ? WHERE id = ?",
+                    (rule['category'], txn['id'])
+                )
+                updated_count += 1
+                break
+                
+    return f"Categorization complete. Updated {updated_count} transactions based on rules."
+
+@mcp.tool()
 def query_transactions(filter_text: str = None, limit: int = 10) -> list:
     """
     Search transactions by merchant, category, or notes.
