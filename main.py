@@ -85,6 +85,59 @@ def merge_duplicates(transaction_ids: list[int]) -> str:
     return f"Merged {len(duplicates)} duplicates into transaction {primary_id}."
 
 @mcp.tool()
+def set_budget(category: str, amount_limit: float, period: str = "monthly") -> str:
+    """
+    Set or update a budget limit for a category.
+    period: 'monthly' or 'yearly'
+    """
+    db.execute(
+        """
+        INSERT INTO budgets (category, period, amount_limit)
+        VALUES (?, ?, ?)
+        ON CONFLICT(category, period) DO UPDATE SET amount_limit = excluded.amount_limit
+        """,
+        (category, period, amount_limit)
+    )
+    return f"Budget for {category} set to Rs. {amount_limit} ({period})."
+
+@mcp.tool()
+def budget_status(period: str = "monthly") -> list:
+    """
+    Check current spending against budget limits for the current period.
+    """
+    date_format = "%Y-%m" if period == "monthly" else "%Y"
+    
+    query = """
+        SELECT 
+            b.category, 
+            b.amount_limit,
+            COALESCE(SUM(t.amount), 0) as current_spend,
+            (b.amount_limit - COALESCE(SUM(t.amount), 0)) as remaining
+        FROM budgets b
+        LEFT JOIN transactions t ON b.category = t.category 
+            AND strftime(?, t.txn_date) = strftime(?, 'now')
+        WHERE b.period = ?
+        GROUP BY b.category
+    """
+    return db.fetch_all(query, (date_format, date_format, period))
+
+@mcp.tool()
+def add_rule(pattern: str, category: str, field: str = "merchant_raw") -> str:
+    """
+    Add a categorization rule. When a transaction matches the pattern, 
+    it will be assigned the specified category.
+    """
+    db.execute(
+        """
+        INSERT INTO rules (pattern, field, category)
+        VALUES (?, ?, ?)
+        ON CONFLICT(pattern, field) DO UPDATE SET category = excluded.category
+        """,
+        (pattern, field, category)
+    )
+    return f"Rule added: Transactions with {field} matching '{pattern}' will be categorized as '{category}'."
+
+@mcp.tool()
 def query_transactions(filter_text: str = None, limit: int = 10) -> list:
     """
     Search transactions by merchant, category, or notes.
