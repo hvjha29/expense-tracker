@@ -1,0 +1,388 @@
+{
+  "rules": [
+    {
+      "pattern": "AMAZON",
+      "category": "Shopping"
+    },
+    {
+      "pattern": "amznlpa",
+      "category": "Shopping"
+    },
+    {
+      "pattern": "SWIGGY",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "ZOMATO",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "BLINKIT",
+      "category": "Groceries"
+    },
+    {
+      "pattern": "ZEPTO",
+      "category": "Groceries"
+    },
+    {
+      "pattern": "INSTAMART",
+      "category": "Groceries"
+    },
+    {
+      "pattern": "groww",
+      "category": "Investments"
+    },
+    {
+      "pattern": "cred.club",
+      "category": "CC Bill Payments"
+    },
+    {
+      "pattern": "AIR INDIA",
+      "category": "Travel"
+    },
+    {
+      "pattern": "GOIBIBO",
+      "category": "Travel"
+    },
+    {
+      "pattern": "CT FLIGHT",
+      "category": "Travel"
+    },
+    {
+      "pattern": "CT HOTEL",
+      "category": "Travel"
+    },
+    {
+      "pattern": "Booking.com",
+      "category": "Travel"
+    },
+    {
+      "pattern": "AIRBNB",
+      "category": "Travel"
+    },
+    {
+      "pattern": "GMR AIRPORTS",
+      "category": "Travel"
+    },
+    {
+      "pattern": "Airport Lounge",
+      "category": "Travel"
+    },
+    {
+      "pattern": "BOOKMYSHOW",
+      "category": "Entertainment"
+    },
+    {
+      "pattern": "BOOK MY SHOW",
+      "category": "Entertainment"
+    },
+    {
+      "pattern": "appleservices",
+      "category": "Subscriptions"
+    },
+    {
+      "pattern": "linkedin",
+      "category": "Subscriptions"
+    },
+    {
+      "pattern": "urbancompany",
+      "category": "Home Services"
+    },
+    {
+      "pattern": "IKEA",
+      "category": "Home Services"
+    },
+    {
+      "pattern": "maxhealthcare",
+      "category": "Health & Medical"
+    },
+    {
+      "pattern": "iciciprulife",
+      "category": "Insurance"
+    },
+    {
+      "pattern": "BISTRO",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "BAWARCHI",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "HONESTLY ITALIAN",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "YOUMEE",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "TALABAT",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "G TOWN WINES",
+      "category": "Food & Dining"
+    },
+    {
+      "pattern": "UNIQLO",
+      "category": "Shopping"
+    },
+    {
+      "pattern": "DAILYOBJECTS",
+      "category": "Shopping"
+    },
+    {
+      "pattern": "NOBERO",
+      "category": "Shopping"
+    },
+    {
+      "pattern": "uidai",
+      "category": "Government/Taxes"
+    },
+    {
+      "pattern": "ORBIT GLOBAL TECH LTD",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "WWW.ORBITMOBILE.COM",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "ETERNAL LIMITED",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "DSI VASANT KUNJ",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "indigoairline.76509958@hdfcbank",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "smartqpg.cf@axisbank",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "cf.smartqpg@cashfreensdlpb",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "cf.smartq99@cashfreensdlpb",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "y43latetdr@postbank",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9971448614@pthdfc",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "paytmqr6dzfu5@ptys",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "q405249010@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "ashok3456@ibl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9718476693-2@axl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9560569285@nyes",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9311544694@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9650403671@pthdfc",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "7895678473@kotak",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9756766172-3@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "arun9899446561@okaxis",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "amankumar97171@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9999406055@ptsbi",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9057852809@ptyes",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9891677283@pthdfc",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9810505317@ptyes",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "7982517241-4@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "paytm.s1y4s1x@pty",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "pradeepkushvaha054@ptyes",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "7827670425@ptyes",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "633280@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9120143028@ibl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "pqr.pc1xl2e@ptyes",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "hrideshyadav30@okaxis",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9355626206@ptsbi",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "8588064571@ptsbi",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9635360000@ibl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9000417730@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "7794923413@ptsbi",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "yespay.bizs.biz19016.ter1@yesbankltd",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "sjayanandam4799@okhdfcbank",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "lonka.kumaraswamy@uboi",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "6302725834-2@ibl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "7207455787@ptsbi",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "alishamehranliu@okhdfcbank",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9711078156@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9695532095-2@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "8102460575@pthdfc",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "gpay-11167066372@okbizaxis",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "bharatpe.9p0q0v0l6h981652@unitype",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "paytmqr6lc36h@ptys",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9918946500@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9911676584@ptyes",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9958672942@ybl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "shikhingarg-1@okicici",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "withpronto2.easebuzz@kotakpay",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "9999735131@axl",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "ruchijha28@okaxis",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "aebc373007241892003@sc",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "pronto000.easebuzz@ypbiz",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "mc3150519@oksbi",
+      "category": "TODO_Categorize_Me"
+    },
+    {
+      "pattern": "rishabhvohra2895@okhdfcbank",
+      "category": "TODO_Categorize_Me"
+    }
+  ]
+}

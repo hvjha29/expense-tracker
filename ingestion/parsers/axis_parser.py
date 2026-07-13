@@ -15,7 +15,7 @@ class AxisParser:
         # Regex for Card ending: Card no. XX8248
         self.card_re = re.compile(r'Card no\. XX(\d{4})')
 
-    def parse(self, subject, body_html):
+    def parse(self, subject, body_html, email_date=None):
         """
         Main entry point for parsing an email.
         """

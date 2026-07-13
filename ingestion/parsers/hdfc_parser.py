@@ -18,10 +18,11 @@ class HDFCParser:
         # Regex for Account ending: account 6167 or account ending 6167
         self.acct_re = re.compile(r'account (?:ending )?(\d{4})')
 
-    def parse(self, subject, body_html):
+    def parse(self, subject, body_html, email_date=None):
         """
         Main entry point for parsing an email.
         body_html: The raw HTML content of the email.
+        email_date: Optional datetime object representing when the email was received.
         """
         # 1. Decode HTML entities (&#39; -> ')
         body = html.unescape(body_html)
@@ -33,12 +34,20 @@ class HDFCParser:
         body = " ".join(body.split())
         
         # 4. Determine Transaction Class
+        result = None
         if "UPI txn" in subject:
-            return self._parse_upi(body)
+            result = self._parse_upi(body)
+            # UPI alerts lack time; use email_date's time if available
+            if result and email_date and result['timestamp'].hour == 0 and result['timestamp'].minute == 0:
+                result['timestamp'] = result['timestamp'].replace(
+                    hour=email_date.hour, 
+                    minute=email_date.minute, 
+                    second=email_date.second
+                )
         elif "Credit Card" in subject or "payment was made" in subject.lower():
-            return self._parse_cc(body)
-        
-        return None
+            result = self._parse_cc(body)
+            
+        return result
 
     def _parse_cc(self, body):
         """

@@ -58,6 +58,17 @@ class SyncService:
             headers = msg.get('payload', {}).get('headers', [])
             subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "")
             
+            # Extract and parse the Date header
+            from email.utils import parsedate_to_datetime
+            date_str = next((h['value'] for h in headers if h['name'] == 'Date'), None)
+            email_date = None
+            if date_str:
+                try:
+                    # Convert to naive local time for consistency with SQLite
+                    email_date = parsedate_to_datetime(date_str).replace(tzinfo=None)
+                except:
+                    pass
+            
             # Extract body
             body = ""
             def get_body(payload):
@@ -77,7 +88,7 @@ class SyncService:
             try:
                 parsed_data = None
                 for parser in self.parsers:
-                    parsed_data = parser.parse(subject, body)
+                    parsed_data = parser.parse(subject, body, email_date=email_date)
                     if parsed_data:
                         break
                 
