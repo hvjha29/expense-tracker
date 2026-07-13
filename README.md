@@ -1,74 +1,106 @@
-# Architecture
-┌─ Gemini CLI (client) ──────────────────────┐
-│  natural language: "how much on food in June?"
-└──────────────┬─────────────────────────────┘
-               │ MCP (stdio)
-┌──────────────▼─────────────────────────────┐
-│  expense-mcp-server (Python, FastMCP)      │
-│  ├── tools/           (MCP tool layer)     │
-│  ├── ingestion/                            │
-│  │   ├── gmail_client.py   (OAuth2, direct API)
-│  │   ├── parsers/          (regex per bank template)
-│  │   └── llm_fallback.py   (Gemini API, unrecognized only)
-│  ├── core/                                 │
-│  │   ├── categorizer.py    (rules → embedding match → LLM)
-│  │   ├── dedup.py          (txn_ref hash + fuzzy window)
-│  │   └── recurring.py      (subscription detection)
-│  └── db/  SQLite (WAL mode)                │
-└────────────────────────────────────────────┘
+# Expense Tracker MCP Server
 
-Schema (minimum): transactions(id, txn_date, amount, currency, merchant_raw, merchant_normalized, category, subcategory, account, payment_method, source_email_id UNIQUE, txn_ref UNIQUE, notes, is_recurring, created_at), categories, budgets(category, period, limit), rules(pattern, field, category), ingestion_log.
-Dedup is the hardest problem: same transaction arrives via bank email + UPI app email + credit card statement. Dedup key: hash(amount, date±1d, normalized_merchant) with txn_ref as primary key when available. You've dealt with exactly this pattern in the CloudCard retry duplicate issue — same idempotency discipline applies.
-# Tool List (MCP capabilities)
-# Ingestion
+A sophisticated personal finance tracker designed to operate as a local **Model Context Protocol (MCP)** server. It securely ingests transaction alerts from your Gmail, parses them deterministically, and provides an intelligent SQL-backed ledger that you can query and manage using natural language via clients like Claude Desktop or Gemini CLI.
 
-sync_emails(since_date, account) — pull + parse + dedupe transaction emails
-parse_receipt(file_path) — OCR/LLM parse of uploaded receipt image/PDF
-add_transaction(...) — manual entry
-import_statement(file_path, format) — CSV/XLSX/PDF bank statement import
-review_unparsed() — list emails that failed deterministic parsing, for LLM/manual triage
+## Architecture
 
-# CRUD & correction
-6. update_transaction(id, fields)
-7. delete_transaction(id)
-8. split_transaction(id, splits[]) — one payment, multiple categories
-9. merge_duplicates(ids[])
-# Categorization
-10. categorize_pending() — run rules → fallback LLM on uncategorized
-11. add_rule(pattern, category) — persist user corrections as rules (this is your learning loop; never re-ask the LLM for a merchant you've already corrected)
-12. list_categories() / manage_category(...)
-# Query & analytics
-13. query_transactions(filters, free_text) — date/category/merchant/amount range + FTS
-14. spending_summary(period, group_by) — month/category/payment-method aggregates
-15. trend_analysis(category, window) — MoM/YoY deltas
-16. top_merchants(period, n)
-17. detect_recurring() — subscriptions, EMIs, SIPs (amount+merchant periodicity)
-18. anomaly_report(period) — z-score or IQR on category spend vs trailing baseline
+*   **Ingestion Pipeline:** Uses Gmail OAuth2 for direct API access to pull transaction emails.
+*   **Parsing Engine:** Uses deterministic regex parsing, resilient to HTML formatting. Currently supports:
+    *   **HDFC Bank:** Credit Card (Legacy & New), Account UPI, RuPay CC UPI.
+    *   **Axis Bank:** Credit Card POS.
+*   **Storage:** Local SQLite database (`expense_tracker.db`) using WAL mode for concurrency and FTS5 for fast merchant searches.
+*   **Server Layer:** Built with `FastMCP`, exposing tools and resources directly to your LLM.
 
-# Budgets & alerts
-19. set_budget(category, period, limit)
-20. budget_status(period) — spend vs limit, burn rate projection
-21. upcoming_recurring(days) — forecast known charges
-Export/report
-22. export_data(format, period) — CSV/XLSX
-23. monthly_report(month) — structured summary (feed to LLM for narrative)
-MCP resources (read-only, cheap context): resource://categories, resource://current_month_summary, resource://budget_status.
+---
 
-# Build order
-SQLite schema + add_transaction / query_transactions / spending_summary — validate MCP wiring in Gemini CLI end-to-end.
-Gmail OAuth + one bank parser (whichever sends you the most alerts). Dedup logic.
-Rules-based categorizer + add_rule correction loop.
-Remaining parsers, LLM fallback, recurring detection.
-Budgets, anomalies, reports.
+## 🛠 Available Tools
 
-# Stack
-Python + FastMCP (pip install mcp) — fastest path, decorators generate schemas.
-google-api-python-client + google-auth-oauthlib for Gmail (readonly scope only).
-SQLite via sqlite3 stdlib, WAL mode, FTS5 for merchant search.
-Gemini Flash via API for fallback parsing/categorization only — force JSON output (response_mime_type: application/json + response schema), never free text into the ledger.
+The MCP server exposes the following tools to your AI client:
 
-My expense server calls Gmail API directly (google-api-python-client + OAuth2 refresh token). Deterministic, no LLM in the ingestion loop, cron-able.
+### 1. Ingestion
+*   **`sync_emails(days)`**: Fetches and parses new transaction emails from Gmail. Skips duplicates automatically.
 
-LLM parsing of transaction emails is an anti-pattern for Indian bank/UPI alerts. HDFC/ICICI/SBI/Paytm alert emails are templated — regex/parser rules give you 100% deterministic extraction at zero cost. Use LLM parsing only as fallback for unrecognized templates. This matters for a financial ledger: you cannot tolerate hallucinated amounts.
+### 2. Analytics & Querying
+*   **`query_transactions(filter_text, limit)`**: Search transactions by merchant, category, or notes using Full-Text Search.
+*   **`spending_summary(period)`**: Aggregates total spend and transaction count grouped by merchant (monthly or yearly).
+*   **`top_merchants(n, period)`**: Returns your highest-spending merchants.
+*   **`anomaly_report(days_baseline, z_threshold)`**: Detects statistically unusual spending (Z-score based) in the last 7 days compared to your historical average.
 
-Use SQLite (single-user, zero-ops, ACID, full-text search built in). Postgres is overkill for personal use.
+### 3. Data Management (CRUD)
+*   **`add_transaction(txn_date, amount, merchant_raw, ...)`**: Manually add a transaction.
+*   **`update_transaction(transaction_id, updates_dict)`**: Surgically update specific fields of a record.
+*   **`delete_transaction(transaction_id)`**: Remove a transaction.
+*   **`merge_duplicates(transaction_ids)`**: Merge multiple duplicate alerts into a single record.
+
+### 4. Categorization & Budgets
+*   **`add_rule(pattern, category)`**: Create a "Learning Loop." e.g., Set a rule that any merchant containing "SWIGGY" becomes "Food & Dining".
+*   **`categorize_pending()`**: Applies all your rules to any currently 'Uncategorized' transactions.
+*   **`set_budget(category, amount_limit, period)`**: Set a spending limit for a specific category.
+*   **`budget_status(period)`**: View your current spend against your defined budgets.
+
+### 5. Export
+*   **`export_data(period)`**: Generates an Excel-compatible `.csv` file of your ledger.
+
+---
+
+## 🚀 How to Use
+
+This server runs locally on your machine. Your financial data is never uploaded to the cloud.
+
+### 1. Prerequisites
+Ensure the Python environment is set up. The server requires Python 3.10+ (specifically Python 3.12 was used in setup).
+```bash
+pip install -r requirements.txt
+```
+*Note: The project requires `credentials.json` and `token.json` from Google Cloud to access Gmail.*
+
+### 2. Connect to Claude Desktop
+To interact with your tracker using Claude, add the server to your Claude configuration file located at `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "expense-tracker": {
+      "command": "/opt/homebrew/bin/python3.12",
+      "args": [
+        "/Users/B0308529/Documents/expense-tracker/main.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/B0308529/Documents/expense-tracker"
+      }
+    }
+  }
+}
+```
+*Restart Claude Desktop after updating the file.*
+
+### 3. Connect to Gemini CLI
+You can also automate tasks using the Gemini CLI. Add the same configuration to your `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "expense-tracker": {
+      "command": "/opt/homebrew/bin/python3.12",
+      "args": [
+        "/Users/B0308529/Documents/expense-tracker/main.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/B0308529/Documents/expense-tracker"
+      }
+    }
+  }
+}
+```
+Verify it is connected by running `gemini /mcp list` in your terminal.
+
+---
+
+## 💡 Example Prompts
+
+Once connected to your LLM, try asking:
+*   *"Sync my emails for the last 5 days."*
+*   *"What was my total spend at SWIGGY this month?"*
+*   *"Set a monthly budget of Rs. 5000 for Food, and tell me my current status."*
+*   *"Export my transactions to an Excel file."*
+*   *"Are there any anomalies in my spending this week?"*
