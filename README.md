@@ -1,6 +1,3 @@
-# expense-tracker
-expense tracking
-
 # Architecture
 ┌─ Gemini CLI (client) ──────────────────────┐
 │  natural language: "how much on food in June?"

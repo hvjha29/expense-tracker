@@ -185,7 +185,7 @@ def query_transactions(filter_text: str = None, limit: int = 10) -> list:
 @mcp.tool()
 def spending_summary(period: str = "month") -> list:
     """
-    Get a summary of spending grouped by merchant.
+    Get a summary of spending grouped by merchant for the current period.
     period: 'month' or 'year'
     """
     date_format = "%Y-%m" if period == "month" else "%Y"
@@ -197,6 +197,95 @@ def spending_summary(period: str = "month") -> list:
         ORDER BY total_spend DESC
     """
     return db.fetch_all(query, (date_format, date_format))
+
+@mcp.tool()
+def top_merchants(n: int = 5, period: str = "all") -> list:
+    """
+    Get the top N merchants by total spending.
+    period: 'month', 'year', or 'all'
+    """
+    if period == "all":
+        query = """
+            SELECT merchant_raw, SUM(amount) as total_spend, COUNT(*) as txn_count
+            FROM transactions
+            GROUP BY merchant_raw
+            ORDER BY total_spend DESC
+            LIMIT ?
+        """
+        return db.fetch_all(query, (n,))
+    else:
+        date_format = "%Y-%m" if period == "month" else "%Y"
+        query = """
+            SELECT merchant_raw, SUM(amount) as total_spend, COUNT(*) as txn_count
+            FROM transactions
+            WHERE strftime(?, txn_date) = strftime(?, 'now')
+            GROUP BY merchant_raw
+            ORDER BY total_spend DESC
+            LIMIT ?
+        """
+        return db.fetch_all(query, (date_format, date_format, n))
+
+@mcp.tool()
+def anomaly_report(days_baseline: int = 90, z_threshold: float = 2.0) -> list:
+    """
+    Detect transactions in the last 7 days that are statistically higher than average.
+    Uses Z-score (std deviations from mean) over the specified baseline.
+    """
+    # Calculate stats per category over baseline
+    stats_query = """
+        WITH stats AS (
+            SELECT 
+                category,
+                AVG(amount) as avg_amt,
+                -- Simple stddev approx: sqrt(avg(x^2) - avg(x)^2)
+                SQRT(AVG(amount * amount) - (AVG(amount) * AVG(amount))) as std_amt
+            FROM transactions
+            WHERE txn_date >= date('now', ?)
+            GROUP BY category
+        )
+        SELECT 
+            t.id, t.txn_date, t.amount, t.merchant_raw, t.category,
+            s.avg_amt, s.std_amt,
+            (t.amount - s.avg_amt) / NULLIF(s.std_amt, 0) as z_score
+        FROM transactions t
+        JOIN stats s ON t.category = s.category
+        WHERE t.txn_date >= date('now', '-7 days')
+          AND (t.amount - s.avg_amt) / NULLIF(s.std_amt, 0) > ?
+        ORDER BY z_score DESC
+    """
+    return db.fetch_all(stats_query, (f"-{days_baseline} days", z_threshold))
+
+@mcp.tool()
+def export_data(period: str = "all") -> str:
+    """
+    Export transactions to an Excel-compatible CSV file.
+    period: 'month', 'year', or 'all'
+    """
+    import csv
+    import os
+    from datetime import datetime
+    
+    if period == "all":
+        query = "SELECT txn_date, amount, merchant_raw, category, payment_method, instrument_last4, notes FROM transactions ORDER BY txn_date DESC"
+        params = ()
+    else:
+        date_format = "%Y-%m" if period == "month" else "%Y"
+        query = "SELECT txn_date, amount, merchant_raw, category, payment_method, instrument_last4, notes FROM transactions WHERE strftime(?, txn_date) = strftime(?, 'now') ORDER BY txn_date DESC"
+        params = (date_format, date_format)
+        
+    rows = db.fetch_all(query, params)
+    if not rows:
+        return "No transactions to export."
+        
+    filename = f"expenses_export_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filepath = os.path.join(os.getcwd(), filename)
+    
+    with open(filepath, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+        
+    return f"Successfully exported {len(rows)} transactions to {filepath}"
 
 @mcp.resource("resource://current_month_total")
 def get_current_month_total() -> str:

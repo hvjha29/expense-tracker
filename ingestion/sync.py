@@ -3,25 +3,47 @@ from datetime import datetime
 from db.manager import DatabaseManager
 from ingestion.gmail_client import GmailClient
 from ingestion.parsers.hdfc_parser import HDFCParser
+from ingestion.parsers.axis_parser import AxisParser
 
 class SyncService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self.gmail = GmailClient()
-        self.parser = HDFCParser()
+        self.parsers = [
+            HDFCParser(),
+            AxisParser()
+        ]
 
-    def sync_hdfc_emails(self, days=7):
+    def sync_emails(self, days=7):
         """
-        Fetches HDFC emails from the last N days and parses them.
+        Fetches transaction emails from Gmail for the last N days.
+        Uses multiple targeted queries with absolute dates for reliability.
         """
-        # HDFC uses two domains: @hdfcbank.net and @hdfcbank.bank.in
-        query = f'from:(hdfcbank.net OR hdfcbank.bank.in) after:{days}d'
-        messages = self.gmail.list_messages(query=query, max_results=100)
+        import datetime
+        after_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime('%Y/%m/%d')
+        
+        queries = [
+            f'\"HDFC Bank\" \"payment was made\" after:{after_date}',
+            f'\"HDFC Bank\" \"debited\" after:{after_date}',
+            f'\"HDFC Bank\" \"UPI txn\" after:{after_date}',
+            f'\"Axis Bank\" \"Transaction alert\" after:{after_date}',
+            f'label:\"Bank updates\" after:{after_date}'
+        ]
+        
+        all_messages = []
+        seen_ids = set()
+        
+        for query in queries:
+            messages = self.gmail.list_messages(query=query, max_results=200)
+            for m in messages:
+                if m['id'] not in seen_ids:
+                    all_messages.append(m)
+                    seen_ids.add(m['id'])
         
         synced_count = 0
         error_count = 0
         
-        for msg_ref in messages:
+        for msg_ref in all_messages:
             msg_id = msg_ref['id']
             
             # 1. Check if already processed
@@ -38,19 +60,26 @@ class SyncService:
             
             # Extract body
             body = ""
-            if 'parts' in msg['payload']:
-                for part in msg['payload']['parts']:
-                    if part['mimeType'] == 'text/plain':
-                        body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                        break
-                    elif part['mimeType'] == 'text/html':
-                        body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-            else:
-                body = base64.urlsafe_b64decode(msg['payload']['body']['data']).decode('utf-8')
+            def get_body(payload):
+                if 'parts' in payload:
+                    for part in payload['parts']:
+                        res = get_body(part)
+                        if res: return res
+                if payload.get('mimeType') in ['text/plain', 'text/html']:
+                    return base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
+                return None
+            
+            body = get_body(msg['payload'])
+            if not body:
+                continue
 
-            # 3. Parse
+            # 3. Parse with all available parsers
             try:
-                parsed_data = self.parser.parse(subject, body)
+                parsed_data = None
+                for parser in self.parsers:
+                    parsed_data = parser.parse(subject, body)
+                    if parsed_data:
+                        break
                 
                 if parsed_data:
                     # 4. Save Transaction
@@ -93,8 +122,12 @@ class SyncService:
 
         return synced_count, error_count
 
+    def sync_hdfc_emails(self, days=7):
+        # Legacy method wrapper
+        return self.sync_emails(days=days)
+
 if __name__ == "__main__":
     db_manager = DatabaseManager()
     sync_service = SyncService(db_manager)
-    synced, errors = sync_service.sync_hdfc_emails(days=30)
+    synced, errors = sync_service.sync_emails(days=365)
     print(f"Sync Complete: {synced} transactions added, {errors} errors.")

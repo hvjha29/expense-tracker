@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "expense-tracker": {
+      "command": "python",
+      "args": [
+        "/Users/B0308529/Documents/expense-tracker/main.py"
+      ]
+    }
+  }
+}

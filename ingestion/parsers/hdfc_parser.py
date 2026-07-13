@@ -25,13 +25,17 @@ class HDFCParser:
         """
         # 1. Decode HTML entities (&#39; -> ')
         body = html.unescape(body_html)
-        # Normalize whitespace
+        
+        # 2. Strip ALL HTML tags to avoid bolding/formatting breaking regex
+        body = re.sub(r'<.*?>', ' ', body)
+        
+        # 3. Normalize whitespace
         body = " ".join(body.split())
         
-        # 2. Determine Transaction Class
+        # 4. Determine Transaction Class
         if "UPI txn" in subject:
             return self._parse_upi(body)
-        elif "Credit Card" in subject:
+        elif "Credit Card" in subject or "payment was made" in subject.lower():
             return self._parse_cc(body)
         
         return None
