@@ -9,8 +9,12 @@ from googleapiclient.errors import HttpError
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_CREDS_PATH = os.path.join(BASE_DIR, 'credentials.json')
+DEFAULT_TOKEN_PATH = os.path.join(BASE_DIR, 'token.json')
+
 class GmailClient:
-    def __init__(self, credentials_path='credentials.json', token_path='token.json'):
+    def __init__(self, credentials_path=DEFAULT_CREDS_PATH, token_path=DEFAULT_TOKEN_PATH):
         self.credentials_path = credentials_path
         self.token_path = token_path
         self.creds = self._authenticate()

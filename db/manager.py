@@ -60,8 +60,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS transactions_fts USING fts5(
 );
 """
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_DB_PATH = os.path.join(BASE_DIR, 'expense_tracker.db')
+
 class DatabaseManager:
-    def __init__(self, db_path='expense_tracker.db'):
+    def __init__(self, db_path=DEFAULT_DB_PATH):
         self.db_path = db_path
         self._init_db()
 

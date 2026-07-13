@@ -6,8 +6,11 @@ import datetime
 # Initialize MCP server
 mcp = FastMCP("ExpenseTracker")
 
+import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Initialize backend
-db = DatabaseManager()
+db = DatabaseManager(os.path.join(BASE_DIR, 'expense_tracker.db'))
 sync_service = SyncService(db)
 
 @mcp.tool()
@@ -278,7 +281,7 @@ def export_data(period: str = "all") -> str:
         return "No transactions to export."
         
     filename = f"expenses_export_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    filepath = os.path.join(os.getcwd(), filename)
+    filepath = os.path.join(BASE_DIR, filename)
     
     with open(filepath, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
