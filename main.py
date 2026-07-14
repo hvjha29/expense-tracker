@@ -2,27 +2,34 @@ from fastmcp import FastMCP
 from db.manager import DatabaseManager
 from ingestion.sync import SyncService
 import datetime
+import os
+import asyncio
 
 # Initialize MCP server
 mcp = FastMCP("ExpenseTracker")
 
-import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Initialize backend
 db = DatabaseManager(os.path.join(BASE_DIR, 'expense_tracker.db'))
+try:
+    loop = asyncio.get_running_loop()
+    loop.create_task(db.initialize())
+except RuntimeError:
+    asyncio.run(db.initialize())
+
 sync_service = SyncService(db)
 
 @mcp.tool()
-def sync_emails(days: int = 7) -> str:
+async def sync_emails(days: int = 7) -> str:
     """
     Sync HDFC transaction emails from Gmail for the last N days.
     """
-    synced, errors = sync_service.sync_hdfc_emails(days=days)
+    synced, errors = await sync_service.sync_hdfc_emails(days=days)
     return f"Sync complete. Added {synced} new transactions. Encounted {errors} errors."
 
 @mcp.tool()
-def add_transaction(
+async def add_transaction(
     txn_date: str, 
     amount: float, 
     merchant_raw: str, 
@@ -34,7 +41,7 @@ def add_transaction(
     Manually add a new transaction.
     txn_date format: 'YYYY-MM-DD HH:MM:SS'
     """
-    db.execute(
+    await db.execute(
         """
         INSERT INTO transactions (txn_date, amount, merchant_raw, category, payment_method, notes)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -44,7 +51,7 @@ def add_transaction(
     return "Transaction added successfully."
 
 @mcp.tool()
-def update_transaction(transaction_id: int, updates: dict) -> str:
+async def update_transaction(transaction_id: int, updates: dict) -> str:
     """
     Update specific fields of a transaction.
     updates: dictionary of field names and new values.
@@ -56,22 +63,22 @@ def update_transaction(transaction_id: int, updates: dict) -> str:
     values = list(updates.values())
     values.append(transaction_id)
     
-    db.execute(
+    await db.execute(
         f"UPDATE transactions SET {set_clause} WHERE id = ?",
         tuple(values)
     )
     return f"Transaction {transaction_id} updated successfully."
 
 @mcp.tool()
-def delete_transaction(transaction_id: int) -> str:
+async def delete_transaction(transaction_id: int) -> str:
     """
     Delete a transaction by ID.
     """
-    db.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
+    await db.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
     return f"Transaction {transaction_id} deleted successfully."
 
 @mcp.tool()
-def merge_duplicates(transaction_ids: list[int]) -> str:
+async def merge_duplicates(transaction_ids: list[int]) -> str:
     """
     Merge multiple duplicate transactions into one.
     The first ID in the list is kept, others are deleted.
@@ -83,17 +90,17 @@ def merge_duplicates(transaction_ids: list[int]) -> str:
     duplicates = transaction_ids[1:]
     
     placeholder = ", ".join(["?"] * len(duplicates))
-    db.execute(f"DELETE FROM transactions WHERE id IN ({placeholder})", tuple(duplicates))
+    await db.execute(f"DELETE FROM transactions WHERE id IN ({placeholder})", tuple(duplicates))
     
     return f"Merged {len(duplicates)} duplicates into transaction {primary_id}."
 
 @mcp.tool()
-def set_budget(category: str, amount_limit: float, period: str = "monthly") -> str:
+async def set_budget(category: str, amount_limit: float, period: str = "monthly") -> str:
     """
     Set or update a budget limit for a category.
     period: 'monthly' or 'yearly'
     """
-    db.execute(
+    await db.execute(
         """
         INSERT INTO budgets (category, period, amount_limit)
         VALUES (?, ?, ?)
@@ -104,7 +111,7 @@ def set_budget(category: str, amount_limit: float, period: str = "monthly") -> s
     return f"Budget for {category} set to Rs. {amount_limit} ({period})."
 
 @mcp.tool()
-def budget_status(period: str = "monthly") -> list:
+async def budget_status(period: str = "monthly") -> list:
     """
     Check current spending against budget limits for the current period.
     """
@@ -122,15 +129,15 @@ def budget_status(period: str = "monthly") -> list:
         WHERE b.period = ?
         GROUP BY b.category
     """
-    return db.fetch_all(query, (date_format, date_format, period))
+    return await db.fetch_all(query, (date_format, date_format, period))
 
 @mcp.tool()
-def add_rule(pattern: str, category: str, field: str = "merchant_raw") -> str:
+async def add_rule(pattern: str, category: str, field: str = "merchant_raw") -> str:
     """
     Add a categorization rule. When a transaction matches the pattern, 
     it will be assigned the specified category.
     """
-    db.execute(
+    await db.execute(
         """
         INSERT INTO rules (pattern, field, category)
         VALUES (?, ?, ?)
@@ -141,15 +148,15 @@ def add_rule(pattern: str, category: str, field: str = "merchant_raw") -> str:
     return f"Rule added: Transactions with {field} matching '{pattern}' will be categorized as '{category}'."
 
 @mcp.tool()
-def categorize_pending() -> str:
+async def categorize_pending() -> str:
     """
     Apply rules to all 'Uncategorized' transactions.
     """
-    rules = db.fetch_all("SELECT * FROM rules")
+    rules = await db.fetch_all("SELECT * FROM rules")
     if not rules:
         return "No rules found. Please add some rules first using add_rule."
     
-    uncategorized = db.fetch_all("SELECT id, merchant_raw, notes FROM transactions WHERE category = 'Uncategorized'")
+    uncategorized = await db.fetch_all("SELECT id, merchant_raw, notes FROM transactions WHERE category = 'Uncategorized'")
     if not uncategorized:
         return "No uncategorized transactions found."
     
@@ -158,7 +165,7 @@ def categorize_pending() -> str:
         for rule in rules:
             field_to_check = txn.get(rule['field'])
             if field_to_check and rule['pattern'].lower() in field_to_check.lower():
-                db.execute(
+                await db.execute(
                     "UPDATE transactions SET category = ? WHERE id = ?",
                     (rule['category'], txn['id'])
                 )
@@ -168,7 +175,7 @@ def categorize_pending() -> str:
     return f"Categorization complete. Updated {updated_count} transactions based on rules."
 
 @mcp.tool()
-def query_transactions(filter_text: str = None, limit: int = 10) -> list:
+async def query_transactions(filter_text: str = None, limit: int = 10) -> list:
     """
     Search transactions by merchant, category, or notes.
     """
@@ -181,12 +188,12 @@ def query_transactions(filter_text: str = None, limit: int = 10) -> list:
             ORDER BY t.txn_date DESC
             LIMIT ?
         """
-        return db.fetch_all(query, (filter_text, limit))
+        return await db.fetch_all(query, (filter_text, limit))
     else:
-        return db.fetch_all("SELECT * FROM transactions ORDER BY txn_date DESC LIMIT ?", (limit,))
+        return await db.fetch_all("SELECT * FROM transactions ORDER BY txn_date DESC LIMIT ?", (limit,))
 
 @mcp.tool()
-def spending_summary(period: str = "month") -> list:
+async def spending_summary(period: str = "month") -> list:
     """
     Get a summary of spending grouped by merchant for the current period.
     period: 'month' or 'year'
@@ -199,10 +206,10 @@ def spending_summary(period: str = "month") -> list:
         GROUP BY merchant_raw
         ORDER BY total_spend DESC
     """
-    return db.fetch_all(query, (date_format, date_format))
+    return await db.fetch_all(query, (date_format, date_format))
 
 @mcp.tool()
-def top_merchants(n: int = 5, period: str = "all") -> list:
+async def top_merchants(n: int = 5, period: str = "all") -> list:
     """
     Get the top N merchants by total spending.
     period: 'month', 'year', or 'all'
@@ -215,7 +222,7 @@ def top_merchants(n: int = 5, period: str = "all") -> list:
             ORDER BY total_spend DESC
             LIMIT ?
         """
-        return db.fetch_all(query, (n,))
+        return await db.fetch_all(query, (n,))
     else:
         date_format = "%Y-%m" if period == "month" else "%Y"
         query = """
@@ -226,10 +233,10 @@ def top_merchants(n: int = 5, period: str = "all") -> list:
             ORDER BY total_spend DESC
             LIMIT ?
         """
-        return db.fetch_all(query, (date_format, date_format, n))
+        return await db.fetch_all(query, (date_format, date_format, n))
 
 @mcp.tool()
-def anomaly_report(days_baseline: int = 90, z_threshold: float = 2.0) -> list:
+async def anomaly_report(days_baseline: int = 90, z_threshold: float = 2.0) -> list:
     """
     Detect transactions in the last 7 days that are statistically higher than average.
     Uses Z-score (std deviations from mean) over the specified baseline.
@@ -256,10 +263,10 @@ def anomaly_report(days_baseline: int = 90, z_threshold: float = 2.0) -> list:
           AND (t.amount - s.avg_amt) / NULLIF(s.std_amt, 0) > ?
         ORDER BY z_score DESC
     """
-    return db.fetch_all(stats_query, (f"-{days_baseline} days", z_threshold))
+    return await db.fetch_all(stats_query, (f"-{days_baseline} days", z_threshold))
 
 @mcp.tool()
-def export_data(period: str = "all") -> str:
+async def export_data(period: str = "all") -> str:
     """
     Export transactions to an Excel-compatible CSV file.
     period: 'month', 'year', or 'all'
@@ -276,7 +283,7 @@ def export_data(period: str = "all") -> str:
         query = "SELECT txn_date, amount, merchant_raw, category, payment_method, instrument_last4, notes FROM transactions WHERE strftime(?, txn_date) = strftime(?, 'now') ORDER BY txn_date DESC"
         params = (date_format, date_format)
         
-    rows = db.fetch_all(query, params)
+    rows = await db.fetch_all(query, params)
     if not rows:
         return "No transactions to export."
         
@@ -291,9 +298,9 @@ def export_data(period: str = "all") -> str:
     return f"Successfully exported {len(rows)} transactions to {filepath}"
 
 @mcp.resource("resource://current_month_total")
-def get_current_month_total() -> str:
+async def get_current_month_total() -> str:
     """Returns the total spend for the current month."""
-    result = db.fetch_one(
+    result = await db.fetch_one(
         "SELECT SUM(amount) as total FROM transactions WHERE strftime('%Y-%m', txn_date) = strftime('%Y-%m', 'now')"
     )
     total = result['total'] if result and result['total'] else 0

@@ -14,7 +14,7 @@ class SyncService:
             AxisParser()
         ]
 
-    def sync_emails(self, days=7):
+    async def sync_emails(self, days=7):
         """
         Fetches transaction emails from Gmail for the last N days.
         Uses multiple targeted queries with absolute dates for reliability.
@@ -47,7 +47,7 @@ class SyncService:
             msg_id = msg_ref['id']
             
             # 1. Check if already processed
-            if self.db.fetch_one("SELECT 1 FROM ingestion_log WHERE email_id = ?", (msg_id,)):
+            if await self.db.fetch_one("SELECT 1 FROM ingestion_log WHERE email_id = ?", (msg_id,)):
                 continue
 
             # 2. Fetch full message
@@ -94,7 +94,7 @@ class SyncService:
                 
                 if parsed_data:
                     # 4. Save Transaction
-                    self.db.execute(
+                    await self.db.execute(
                         """
                         INSERT INTO transactions 
                         (txn_date, amount, merchant_raw, instrument_last4, payment_method, source_email_id, txn_ref)
@@ -112,20 +112,20 @@ class SyncService:
                     )
                     
                     # Log success
-                    self.db.execute(
+                    await self.db.execute(
                         "INSERT INTO ingestion_log (email_id, status) VALUES (?, ?)",
                         (msg_id, 'parsed')
                     )
                     synced_count += 1
                 else:
                     # Log ignored (not a transaction email we know)
-                    self.db.execute(
+                    await self.db.execute(
                         "INSERT INTO ingestion_log (email_id, status) VALUES (?, ?)",
                         (msg_id, 'ignored')
                     )
             except Exception as e:
                 # Log failure
-                self.db.execute(
+                await self.db.execute(
                     "INSERT INTO ingestion_log (email_id, status, error_message) VALUES (?, ?, ?)",
                     (msg_id, 'failed', str(e))
                 )
@@ -133,12 +133,17 @@ class SyncService:
 
         return synced_count, error_count
 
-    def sync_hdfc_emails(self, days=7):
+    async def sync_hdfc_emails(self, days=7):
         # Legacy method wrapper
-        return self.sync_emails(days=days)
+        return await self.sync_emails(days=days)
 
 if __name__ == "__main__":
-    db_manager = DatabaseManager()
-    sync_service = SyncService(db_manager)
-    synced, errors = sync_service.sync_emails(days=365)
-    print(f"Sync Complete: {synced} transactions added, {errors} errors.")
+    import asyncio
+    async def main():
+        db_manager = DatabaseManager()
+        await db_manager.initialize()
+        sync_service = SyncService(db_manager)
+        synced, errors = await sync_service.sync_emails(days=365)
+        print(f"Sync Complete: {synced} transactions added, {errors} errors.")
+        
+    asyncio.run(main())

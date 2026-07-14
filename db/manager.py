@@ -1,4 +1,5 @@
-import sqlite3
+import aiosqlite
+import asyncio
 import os
 
 SCHEMA = """
@@ -66,37 +67,37 @@ DEFAULT_DB_PATH = os.path.join(BASE_DIR, 'expense_tracker.db')
 class DatabaseManager:
     def __init__(self, db_path=DEFAULT_DB_PATH):
         self.db_path = db_path
-        self._init_db()
 
-    def _get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        # Enable WAL mode for better concurrency
-        conn.execute("PRAGMA journal_mode=WAL;")
-        return conn
+    async def initialize(self):
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute("PRAGMA journal_mode=WAL;")
+            await conn.executescript(SCHEMA)
+            await conn.commit()
 
-    def _init_db(self):
-        with self._get_connection() as conn:
-            conn.executescript(SCHEMA)
-            conn.commit()
+    async def execute(self, query, params=()):
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute("PRAGMA journal_mode=WAL;")
+            await conn.execute(query, params)
+            await conn.commit()
+            return None
 
-    def execute(self, query, params=()):
-        with self._get_connection() as conn:
-            cursor = conn.execute(query, params)
-            conn.commit()
-            return cursor
+    async def fetch_all(self, query, params=()):
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute("PRAGMA journal_mode=WAL;")
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(query, params)
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
-    def fetch_all(self, query, params=()):
-        with self._get_connection() as conn:
-            cursor = conn.execute(query, params)
-            return [dict(row) for row in cursor.fetchall()]
-
-    def fetch_one(self, query, params=()):
-        with self._get_connection() as conn:
-            cursor = conn.execute(query, params)
-            row = cursor.fetchone()
+    async def fetch_one(self, query, params=()):
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute("PRAGMA journal_mode=WAL;")
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(query, params)
+            row = await cursor.fetchone()
             return dict(row) if row else None
 
 if __name__ == "__main__":
     db = DatabaseManager()
+    asyncio.run(db.initialize())
     print(f"Database initialized at {os.path.abspath(db.db_path)}")
