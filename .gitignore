@@ -7,6 +7,8 @@ token.json
 *.db
 *.db-wal
 *.db-shm
+*.csv
+category_rules.json
 
 # Python
 __pycache__/
