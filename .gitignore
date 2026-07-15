@@ -26,3 +26,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets and environment variables
+.env
+llm_config.md
