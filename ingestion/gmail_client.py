@@ -17,8 +17,14 @@ class GmailClient:
     def __init__(self, credentials_path=DEFAULT_CREDS_PATH, token_path=DEFAULT_TOKEN_PATH):
         self.credentials_path = credentials_path
         self.token_path = token_path
-        self.creds = self._authenticate()
-        self.service = build('gmail', 'v1', credentials=self.creds)
+        self.creds = None
+        self._service = None
+
+    def _get_service(self):
+        if not self._service:
+            self.creds = self._authenticate()
+            self._service = build('gmail', 'v1', credentials=self.creds)
+        return self._service
 
     def _authenticate(self):
         creds = None
@@ -50,7 +56,8 @@ class GmailClient:
 
     def list_messages(self, query='', max_results=10):
         try:
-            results = self.service.users().messages().list(
+            service = self._get_service()
+            results = service.users().messages().list(
                 userId='me', q=query, maxResults=max_results
             ).execute()
             return results.get('messages', [])
@@ -60,7 +67,8 @@ class GmailClient:
 
     def get_message(self, message_id):
         try:
-            return self.service.users().messages().get(
+            service = self._get_service()
+            return service.users().messages().get(
                 userId='me', id=message_id, format='full'
             ).execute()
         except HttpError as error:
