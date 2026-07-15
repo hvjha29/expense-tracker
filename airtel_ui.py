@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import asyncio
 import gradio as gr
@@ -7,6 +8,7 @@ from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.client.session import ClientSession
+from llm_budget import SYSTEM_PROMPT, fetch_breach_context
 
 # Load environment variables
 load_dotenv()
@@ -33,8 +35,8 @@ async def init_mcp():
 
     print("Initializing MCP Server connection...")
     server_params = StdioServerParameters(
-        command="python",
-        args=["main.py"],
+        command=sys.executable,
+        args=[os.path.join(os.path.dirname(__file__), "main.py")],
         env=os.environ.copy()
     )
     
@@ -65,9 +67,12 @@ async def chat(message, history):
     `history` is a list of [user_msg, assistant_msg] pairs.
     """
     await init_mcp()
-    
+
+    # Pull live breaches so the LLM always has alert context
+    breach_alert = await fetch_breach_context(mcp_session)
+
     # Build conversation history for OpenAI
-    messages = [{"role": "system", "content": "You are a helpful assistant integrated into the Airtel app for expense tracking. Use the provided tools to assist the user."}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + breach_alert}]
     
     for item in history:
         if isinstance(item, (list, tuple)):
@@ -137,7 +142,13 @@ demo = gr.ChatInterface(
     fn=chat,
     title="Airtel Expense Tracker POC",
     description="Test your Airtel App integration with conversational context! The AI remembers what you just said.",
-    examples=["What is my spending summary for this month?", "I want a full breakdown.", "Sync my latest emails.", "Which merchants did I spend the most on?"],
+    examples=[
+        "Set a monthly budget of 5000 for Food",
+        "Set a monthly merchant budget of 2000 for SWIGGY",
+        "Have I breached any budgets?",
+        "What is my spending summary for this month?",
+        "Sync my latest emails.",
+    ],
 )
 
 if __name__ == "__main__":

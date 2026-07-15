@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.client.session import ClientSession
+from llm_budget import SYSTEM_PROMPT, fetch_breach_context
 
 # Load environment variables from .env
 # This is a much better practice than keeping a markdown file with secrets.
@@ -28,8 +29,8 @@ async def chat_with_mcp(prompt: str):
     # 1. Setup connection to the local MCP server (Expense Tracker)
     # This runs the main.py script which exposes the fastmcp server
     server_params = StdioServerParameters(
-        command="python",
-        args=["main.py"],
+        command=sys.executable,
+        args=[os.path.join(os.path.dirname(__file__), "main.py")],
         env=os.environ.copy()
     )
 
@@ -55,8 +56,9 @@ async def chat_with_mcp(prompt: str):
                 })
 
             # 3. Call Azure OpenAI with the user's prompt and available tools
+            breach_alert = await fetch_breach_context(session)
             messages = [
-                {"role": "system", "content": "You are a helpful assistant integrated into the Airtel app for expense tracking. Use the provided tools to assist the user."},
+                {"role": "system", "content": SYSTEM_PROMPT + breach_alert},
                 {"role": "user", "content": prompt}
             ]
             

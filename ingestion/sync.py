@@ -19,6 +19,8 @@ class SyncService:
         Fetches transaction emails from Gmail for the last N days.
         Uses multiple targeted queries with absolute dates for reliability.
         """
+        await self.db.ensure_initialized()
+
         import datetime
         after_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime('%Y/%m/%d')
         

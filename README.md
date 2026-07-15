@@ -35,8 +35,9 @@ The MCP server exposes the following tools to your AI client:
 ### 4. Categorization & Budgets
 *   **`add_rule(pattern, category)`**: Create a "Learning Loop." e.g., Set a rule that any merchant containing "SWIGGY" becomes "Food & Dining".
 *   **`categorize_pending()`**: Applies all your rules to any currently 'Uncategorized' transactions.
-*   **`set_budget(category, amount_limit, period)`**: Set a spending limit for a specific category.
-*   **`budget_status(period)`**: View your current spend against your defined budgets.
+*   **`set_budget(amount_limit, category=..., merchant=..., period)`**: Set a monthly/yearly limit for a **category** or a **merchant** (exactly one).
+*   **`budget_status(period)`**: View spend vs limits (includes `breached` + `utilization_pct`).
+*   **`budget_breaches(period)`**: Return only budgets that are currently over limit (used by the LLM layer to flag alerts).
 
 ### 5. Export
 *   **`export_data(period)`**: Generates an Excel-compatible `.csv` file of your ledger.

@@ -10,11 +10,11 @@ mcp = FastMCP("ExpenseTracker")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Initialize backend
+# Initialize backend (schema is also ensured lazily on first DB use)
 db = DatabaseManager(os.path.join(BASE_DIR, 'expense_tracker.db'))
 try:
-    loop = asyncio.get_running_loop()
-    loop.create_task(db.initialize())
+    # Avoid fire-and-forget create_task — sync can race an empty DB.
+    asyncio.get_running_loop()
 except RuntimeError:
     asyncio.run(db.initialize())
 
@@ -25,6 +25,7 @@ async def sync_emails(days: int = 7) -> str:
     """
     Sync HDFC transaction emails from Gmail for the last N days.
     """
+    await db.ensure_initialized()
     synced, errors = await sync_service.sync_hdfc_emails(days=days)
     return f"Sync complete. Added {synced} new transactions. Encounted {errors} errors."
 
@@ -95,41 +96,108 @@ async def merge_duplicates(transaction_ids: list[int]) -> str:
     return f"Merged {len(duplicates)} duplicates into transaction {primary_id}."
 
 @mcp.tool()
-async def set_budget(category: str, amount_limit: float, period: str = "monthly") -> str:
+async def set_budget(
+    amount_limit: float,
+    category: str = None,
+    merchant: str = None,
+    period: str = "monthly",
+) -> str:
     """
-    Set or update a budget limit for a category.
+    Set or update a spending budget for a category OR a merchant.
+    Provide exactly one of: category, merchant.
+    Merchant budgets match any transaction whose merchant name contains the given text (case-insensitive).
     period: 'monthly' or 'yearly'
     """
+    if bool(category) == bool(merchant):
+        return "Provide exactly one of 'category' or 'merchant'."
+    if period not in ("monthly", "yearly"):
+        return "period must be 'monthly' or 'yearly'."
+
+    scope_type = "category" if category else "merchant"
+    scope_value = (category or merchant).strip()
+    if not scope_value:
+        return "Budget target cannot be empty."
+
     await db.execute(
         """
-        INSERT INTO budgets (category, period, amount_limit)
-        VALUES (?, ?, ?)
-        ON CONFLICT(category, period) DO UPDATE SET amount_limit = excluded.amount_limit
+        INSERT INTO budgets (scope_type, scope_value, period, amount_limit)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(scope_type, scope_value, period)
+        DO UPDATE SET amount_limit = excluded.amount_limit
         """,
-        (category, period, amount_limit)
+        (scope_type, scope_value, period, amount_limit),
     )
-    return f"Budget for {category} set to Rs. {amount_limit} ({period})."
+    return (
+        f"Budget set: {scope_type} '{scope_value}' → Rs. {amount_limit:.2f} ({period}). "
+        f"Use budget_status or budget_breaches to monitor it."
+    )
+
+async def _budget_rows(period: str = "monthly") -> list:
+    """Compute spend vs limit for all budgets in the period."""
+    await db.ensure_initialized()
+    date_format = "%Y-%m" if period == "monthly" else "%Y"
+    budgets = await db.fetch_all(
+        "SELECT scope_type, scope_value, period, amount_limit FROM budgets WHERE period = ?",
+        (period,),
+    )
+    rows = []
+    for b in budgets:
+        if b["scope_type"] == "category":
+            spend_row = await db.fetch_one(
+                """
+                SELECT COALESCE(SUM(amount), 0) AS current_spend
+                FROM transactions
+                WHERE lower(category) = lower(?)
+                  AND strftime(?, txn_date) = strftime(?, 'now')
+                """,
+                (b["scope_value"], date_format, date_format),
+            )
+        else:
+            spend_row = await db.fetch_one(
+                """
+                SELECT COALESCE(SUM(amount), 0) AS current_spend
+                FROM transactions
+                WHERE lower(merchant_raw) LIKE '%' || lower(?) || '%'
+                  AND strftime(?, txn_date) = strftime(?, 'now')
+                """,
+                (b["scope_value"], date_format, date_format),
+            )
+        current = float(spend_row["current_spend"] if spend_row else 0)
+        limit = float(b["amount_limit"])
+        remaining = limit - current
+        rows.append(
+            {
+                "scope_type": b["scope_type"],
+                "scope_value": b["scope_value"],
+                "period": b["period"],
+                "amount_limit": limit,
+                "current_spend": current,
+                "remaining": remaining,
+                "breached": current > limit,
+                "utilization_pct": round((current / limit) * 100, 1) if limit else None,
+            }
+        )
+    return rows
 
 @mcp.tool()
 async def budget_status(period: str = "monthly") -> list:
     """
-    Check current spending against budget limits for the current period.
+    Check current spending against all category and merchant budgets for the period.
+    Each row includes breached=true/false and utilization_pct.
     """
-    date_format = "%Y-%m" if period == "monthly" else "%Y"
-    
-    query = """
-        SELECT 
-            b.category, 
-            b.amount_limit,
-            COALESCE(SUM(t.amount), 0) as current_spend,
-            (b.amount_limit - COALESCE(SUM(t.amount), 0)) as remaining
-        FROM budgets b
-        LEFT JOIN transactions t ON b.category = t.category 
-            AND strftime(?, t.txn_date) = strftime(?, 'now')
-        WHERE b.period = ?
-        GROUP BY b.category
+    if period not in ("monthly", "yearly"):
+        return [{"error": "period must be 'monthly' or 'yearly'."}]
+    return await _budget_rows(period)
+
+@mcp.tool()
+async def budget_breaches(period: str = "monthly") -> list:
     """
-    return await db.fetch_all(query, (date_format, date_format, period))
+    Return only budgets that are currently breached (spend > limit).
+    Call this to alert the user about overspending.
+    """
+    if period not in ("monthly", "yearly"):
+        return [{"error": "period must be 'monthly' or 'yearly'."}]
+    return [row for row in await _budget_rows(period) if row["breached"]]
 
 @mcp.tool()
 async def add_rule(pattern: str, category: str, field: str = "merchant_raw") -> str:
