@@ -1,4 +1,5 @@
-import os.path
+import os
+import json
 import base64
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -28,29 +29,53 @@ class GmailClient:
 
     def _authenticate(self):
         creds = None
-        # The file token.json stores the user's access and refresh tokens, and is
-        # created automatically when the authorization flow completes for the first time.
-        if os.path.exists(self.token_path):
+        
+        # 1. Try to load token from environment variable
+        token_env = os.environ.get('GMAIL_TOKEN_JSON')
+        if token_env:
+            try:
+                token_info = json.loads(token_env)
+                creds = Credentials.from_authorized_user_info(token_info, SCOPES)
+            except Exception as e:
+                print(f"Failed to load token from GMAIL_TOKEN_JSON: {e}")
+        # 2. Fallback to token.json file
+        elif os.path.exists(self.token_path):
             creds = Credentials.from_authorized_user_file(self.token_path, SCOPES)
         
         # If there are no (valid) credentials available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
+                # Save the refreshed credentials if we are using files
+                if not os.environ.get('GMAIL_TOKEN_JSON'):
+                    with open(self.token_path, 'w') as token:
+                        token.write(creds.to_json())
+                else:
+                    print("Warning: GMAIL_TOKEN_JSON refreshed but cannot be saved persistently. Consider updating the environment variable.")
             else:
-                if not os.path.exists(self.credentials_path):
-                    raise FileNotFoundError(
-                        f"{self.credentials_path} not found. Please download it from "
-                        "Google Cloud Console and place it in the project root."
-                    )
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_path, SCOPES)
+                # 3. If no token, we need to do the oauth flow.
+                creds_env = os.environ.get('GMAIL_CREDENTIALS_JSON')
+                if creds_env:
+                    try:
+                        client_config = json.loads(creds_env)
+                        flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+                    except Exception as e:
+                        raise ValueError(f"Failed to load client config from GMAIL_CREDENTIALS_JSON: {e}")
+                else:
+                    if not os.path.exists(self.credentials_path):
+                        raise FileNotFoundError(
+                            f"{self.credentials_path} not found. Please set GMAIL_CREDENTIALS_JSON env var or place it in the project root."
+                        )
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        self.credentials_path, SCOPES)
+                
                 # Use a fixed port to match the Google Cloud Console redirect URI
                 creds = flow.run_local_server(port=8080)
             
-            # Save the credentials for the next run
-            with open(self.token_path, 'w') as token:
-                token.write(creds.to_json())
+                # Save the credentials for the next run if not using env vars
+                if not os.environ.get('GMAIL_TOKEN_JSON'):
+                    with open(self.token_path, 'w') as token:
+                        token.write(creds.to_json())
         
         return creds
 
