@@ -2,6 +2,9 @@ import re
 import html
 from datetime import datetime
 
+from ingestion.amount_utils import infer_direction, normalize_amount
+
+
 class HDFCParser:
     """
     Parser for HDFC Bank transaction emails.
@@ -66,13 +69,16 @@ class HDFCParser:
         if not (amt_match and cc_match and date_match):
             return None
 
+        amount = normalize_amount(float(amt_match.group(1).replace(",", "")))
+        direction = infer_direction(body=body, payment_type="CC_DEBIT")
         return {
-            "type": "CC_DEBIT",
-            "amount": float(amt_match.group(1).replace(',', '')),
+            "type": "CC_DEBIT" if direction == "debit" else "CC_CREDIT",
+            "amount": amount,
+            "direction": direction,
             "instrument_last4": cc_match.group(1),
             "merchant": merchant_match.group(1).strip() if merchant_match else "Unknown",
             "timestamp": datetime.strptime(date_match.group(1), "%d %b, %Y at %H:%M:%S"),
-            "raw_merchant": merchant_match.group(1).strip() if merchant_match else ""
+            "raw_merchant": merchant_match.group(1).strip() if merchant_match else "",
         }
 
     def _parse_upi(self, body):
@@ -110,14 +116,17 @@ class HDFCParser:
         if not (amt_match and rrn_match and date_match and instr_match):
             return None
 
+        amount = normalize_amount(float(amt_match.group(1).replace(",", "")))
+        direction = infer_direction(body=body, payment_type=instr_type)
         return {
             "type": instr_type,
-            "amount": float(amt_match.group(1).replace(',', '')),
+            "amount": amount,
+            "direction": direction,
             "instrument_last4": instr_match.group(1),
             "txn_ref": rrn_match.group(1),
             "merchant": payee,
             "timestamp": datetime.strptime(date_match.group(1), "%d-%m-%y"),
-            "raw_merchant": payee
+            "raw_merchant": payee,
         }
 
 if __name__ == "__main__":

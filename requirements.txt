@@ -4,7 +4,7 @@ google-auth-oauthlib
 mcp
 fastmcp
 python-dotenv
-aiosqlite
+asyncpg
 uv
 openai
 gradio

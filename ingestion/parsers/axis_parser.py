@@ -2,6 +2,9 @@ import re
 import html
 from datetime import datetime
 
+from ingestion.amount_utils import infer_direction, normalize_amount
+
+
 class AxisParser:
     """
     Parser for Axis Bank transaction emails.
@@ -40,13 +43,18 @@ class AxisParser:
         if not (amt_match and card_match and date_match):
             return None
 
+        amount = normalize_amount(float(amt_match.group(1).replace(",", "")))
+        direction = infer_direction(
+            subject=subject, body=body, payment_type="AXIS_CC_DEBIT"
+        )
         return {
-            "type": "AXIS_CC_DEBIT",
-            "amount": float(amt_match.group(1).replace(',', '')),
+            "type": "AXIS_CC_DEBIT" if direction == "debit" else "AXIS_CC_CREDIT",
+            "amount": amount,
+            "direction": direction,
             "instrument_last4": card_match.group(1),
             "merchant": merchant_match.group(1).strip() if merchant_match else "Unknown",
             "timestamp": datetime.strptime(date_match.group(1), "%d-%m-%y %H:%M:%S"),
-            "raw_merchant": merchant_match.group(1).strip() if merchant_match else ""
+            "raw_merchant": merchant_match.group(1).strip() if merchant_match else "",
         }
 
 if __name__ == "__main__":
