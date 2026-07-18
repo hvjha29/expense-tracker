@@ -22,7 +22,13 @@ _db_cache: dict[str, DatabaseManager] = {}
 def ensure_user_data_dir(user: UserConfig) -> Path:
     """Local dir for Gmail tokens / CSV exports (not the ledger)."""
     path = user.data_dir()
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        # Fallback for read-only environments (e.g. serverless / fastmcp.app)
+        # We only strictly NEED this for CSV exports and legacy token storage.
+        # If tokens are in Postgres, we can keep going.
+        pass
     return path
 
 
@@ -36,8 +42,12 @@ def migrate_legacy_gmail_token_if_needed(user: UserConfig) -> None:
         if os.environ.get("MIGRATE_LEGACY_GMAIL_TO") != user.user_id:
             return
     ensure_user_data_dir(user)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(legacy, target)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(legacy, target)
+    except OSError:
+        # Fallback for read-only filesystems
+        pass
 
 
 async def init_database() -> None:

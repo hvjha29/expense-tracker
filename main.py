@@ -784,14 +784,20 @@ async def export_data(period: str = "all") -> str:
             row["txn_date"] = str(row["txn_date"])
 
     export_dir = user.data_dir()
-    export_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"expenses_export_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    filepath = os.path.join(export_dir, filename)
+    try:
+        export_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"expenses_export_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filepath = os.path.join(export_dir, filename)
 
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
+        with open(filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+    except OSError as e:
+        return (
+            f"Failed to export: The data directory is not writable ({e}). "
+            "If you are running in a container, ensure /app/data is mounted as a writable volume."
+        )
 
     return f"Successfully exported {len(rows)} transactions to {filepath}"
 

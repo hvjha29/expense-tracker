@@ -74,9 +74,13 @@ class GmailClient:
                     
                 # Persist refresh when using files (not pure env override)
                 if not self.token_json_override and not os.environ.get("GMAIL_TOKEN_JSON"):
-                    os.makedirs(os.path.dirname(os.path.abspath(self.token_path)) or ".", exist_ok=True)
-                    with open(self.token_path, "w") as token:
-                        token.write(creds.to_json())
+                    try:
+                        os.makedirs(os.path.dirname(os.path.abspath(self.token_path)) or ".", exist_ok=True)
+                        with open(self.token_path, "w") as token:
+                            token.write(creds.to_json())
+                    except OSError:
+                        # Fallback for read-only filesystems
+                        pass
             else:
                 # Interactive OAuth (local setup only; not for headless cloud)
                 creds_env = os.environ.get("GMAIL_CREDENTIALS_JSON")
@@ -104,9 +108,13 @@ class GmailClient:
                 if self.on_token_refresh:
                     await self.on_token_refresh(creds.to_json())
 
-                os.makedirs(os.path.dirname(os.path.abspath(self.token_path)) or ".", exist_ok=True)
-                with open(self.token_path, "w") as token:
-                    token.write(creds.to_json())
+                try:
+                    os.makedirs(os.path.dirname(os.path.abspath(self.token_path)) or ".", exist_ok=True)
+                    with open(self.token_path, "w") as token:
+                        token.write(creds.to_json())
+                except OSError:
+                    # Fallback for read-only filesystems
+                    pass
 
         return creds
 
